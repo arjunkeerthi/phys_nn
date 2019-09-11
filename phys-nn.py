@@ -78,29 +78,48 @@ class NN:
 
 
     # inputs and outputs are numpy arrays with correct shape
-    def train(self, inputs, outputs):
-        self.nodes[0] = inputs
-        # print("\nFeedforward stage:")
-        # print("Nodes before:")
-        # print(self.nodes);
-        for i in range(self.num_layers-1):
-            # update nodes[1] through nodes[num_layers-1], inclusive
-            self.feedforward(i+1)
-        # print("Nodes after:")
-        # print(self.nodes)
-        # print("\nBackprop step:")
-        # calculate the error
-        delta_L = self.error(outputs);
-        curr_layer = self.num_layers-2;
-        print("Error:")
-        print(delta_L)
-        # print("W before:")
-        # print(self.W)
-        delta_l = self.backprop(curr_layer, delta_L);
-        for i in range(self.num_layers-3, -1, -1):
-            delta_l = self.backprop(i, delta_l);
-        # print("W after:")
-        # print(self.W);
+    def train(self, inputs, outputs, num_iterations):
+        if len(inputs) != len(outputs):
+            print("Number of inputs different from number of outputs. Returning.")
+            return;
+
+        print("\n***STARTING TRAINING***")
+        initial_weights = copy.deepcopy(self.W)
+        for i in range(num_iterations):
+            print(f"***ITERATION {i+1}***")
+            for j in range(len(inputs)):
+                print("\n" + "-"*90 + "\n")
+                print(f"Input #{i+1}:");
+                self.nodes[0] = inputs[j];
+                # print("\nFeedforward stage:")
+                # print("Nodes before:")
+                # print(self.nodes);
+                for i in range(self.num_layers-1):
+                    # update nodes[1] through nodes[num_layers-1], inclusive
+                    self.feedforward(i+1)
+                # print("Nodes after:")
+                # print(self.nodes)
+                # print("\nBackprop step:")
+                # calculate the error
+                delta_L = self.error(outputs[j]);
+                curr_layer = self.num_layers-2;
+                print("Error:")
+                print(delta_L)
+                # print("W before:")
+                # print(self.W)
+                delta_l = self.backprop(curr_layer, delta_L);
+                for i in range(self.num_layers-3, -1, -1):
+                    delta_l = self.backprop(i, delta_l);
+                # print("W after:")
+                # print(self.W);
+            print("\n" + "-"*90 + "\n")
+
+        #print("\n" + "-"*90 + "\n")
+        print("Weight comparison:")
+        print("Initial:")
+        print(initial_weights)
+        print("Final:")
+        print(test_NN.W)
 
 if __name__ == "__main__":
     # goal: have input[i] as inputs to the NN give back target[i] as the output
@@ -108,18 +127,19 @@ if __name__ == "__main__":
     target = np.array([[0],[1],[0],[1],[1],[0]])
 
     test_NN = NN(3,[3,3,1],[1.0,1.0]);
-    initial_weights = copy.deepcopy(test_NN.W)
+    #initial_weights = copy.deepcopy(test_NN.W)
+    test_NN.train(input, target, 50)
 
-    print("\n***STARTING TRAINING***")
-    for j in range(100):
-        for i in range(len(input)):
-            print("\n" + "-"*90 + "\n")
-            print(f"Iteration {i+1}:");
-            test_NN.train(input[i], target[i]);
+    # print("\n***STARTING TRAINING***")
+    # for j in range(100):
+    #     for i in range(len(input)):
+    #         print("\n" + "-"*90 + "\n")
+    #         print(f"Iteration {i+1}:");
+    #         test_NN.train(input[i], target[i]);
 
-    print("\n" + "-"*90 + "\n")
-    print("Weight comparison:")
-    print("Initial:")
-    print(initial_weights)
-    print("Final:")
-    print(test_NN.W)
+    # print("\n" + "-"*90 + "\n")
+    # print("Weight comparison:")
+    # print("Initial:")
+    # print(initial_weights)
+    # print("Final:")
+    # print(test_NN.W)
