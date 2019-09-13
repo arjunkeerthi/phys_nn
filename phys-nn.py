@@ -1,40 +1,48 @@
 import numpy as np
 import copy
+from sklearn import datasets
+import sklearn.metrics
 
 class NN:
-    # num_layers = number of layers in network
     # layer_node_count = list of number of nodes in each layers
     # - First element: Number of nodes in input layer, Last: output layer
     # bias = Bias for the corresponding layer counted in layer_node_count
-    def __init__(self, num_layers=3, layer_node_count=[2,2,2], bias=[1.0, 1.0]):
-        self.learning_rate = 0.05
-        self.num_iterations = 100
+    def __init__(self, layer_node_count=[2,2,2], bias=np.ones(2)):
+        self.learning_rate = 0.1
 
-        # define the activation function using python's ability to treat functions as objects
-        self.activ_func = np.tanh
-        self.activ_func_deriv = lambda x : 1 - (np.tanh(x))**2
+        # define activation function and its derivative
+        self.sigmoid = lambda z: 1/(1+np.exp(-z))
+        self.sigmoid_derivative = lambda z: self.sigmoid(z)*(1-self.sigmoid(z));
 
-        self.num_layers = num_layers
+        self.num_layers = len(layer_node_count)
 
         # instantiate the weights matrices
+        np.random.seed(2)
         self.W = []
-        for i in range(num_layers-1):
+        for i in range(self.num_layers-1):
             # Add weights between i and i+1 layer
-            #weights = np.ndarray(shape=(layer_node_count[i], layer_node_count[i+1]))
             weights = np.random.rand(layer_node_count[i], layer_node_count[i+1])*2-1
             self.W.append(weights)
 
         # Should be length of num_layers-1
-        self.bias = bias
+        self.bias = []
+        for i in range(self.num_layers-1):
+            biases = np.empty(layer_node_count[i+1])
+            biases.fill(bias[i])
+            self.bias.append(biases)
 
         # nodes[i] is a vector of length layer_node_count[i]
         self.nodes = []
-        for i in range(num_layers):
-            layer = np.zeros(layer_node_count[i])
+        for i in range(self.num_layers):
+            layer = np.zeros((layer_node_count[i],1))
             self.nodes.append(layer);
 
-    # give the layer value to update via x_j = s(w_ij x_i + b_j)
-    def feedforward(self, layer): # finished
+        self.pre_activation_nodes = copy.deepcopy(self.nodes)
+
+
+    # give the layer value to update
+    def feedforward(self, layer):
+        # bounds checking
         if layer == 0:
             print("can not feedforward to the input layer")
             return
@@ -42,38 +50,43 @@ class NN:
             print("feedforward out of bounds")
             return
 
-        # iterate over the nodes in the layer we're updating
-        # for j in range(len(self.nodes[layer])):
-        #     layer_W = self.W[layer-1]
-        #     signal = 0
-        #     # use the value of the nodes in the previous position
-        #     # sum(w_ij x_i + b_j)
-        #     for i in range(len(self.nodes[layer-1])):
-        #         signal += layer_W[i][j] * self.nodes[layer-1][i] + self.bias[layer-1]
-        #
-        #     # pass the signal through the activation function and update the nodes
-        #     self.nodes[layer][j] = self.activ_func(signal)
-
-        # Test code for later
+        # grab relevant values
         weights = self.W[layer-1]
         prev_node_layer = self.nodes[layer-1]
-        self.nodes[layer] = self.activ_func(prev_node_layer@weights);
+        layer_bias = self.bias[layer-1]
+
+        # calculate the 'z' from the lecture notes
+        activation_input = prev_node_layer@weights+layer_bias
+        self.pre_activation_nodes[layer] = activation_input
+
+        # feed forward to the node
+        self.nodes[layer] = self.sigmoid(activation_input)
+
 
     # Calculate error in output layer
     def error(self, outputs):
         return outputs - self.nodes[self.num_layers-1];
 
-    def backprop(self, layer, delta):
+    def backprop(self, layer, delta, previous_weights=None):
         # calc deltas for the first layer
         # update the weights before the output layers
         # calc deltas farther back
-        #for i in range(len(nodes[layer])):
-        #    layer_W = self.W[layer].transpose();
+
+        # if layer is hidden layer right before output layer
+        if layer == self.num_layers-2 and previous_weights is None:
+            pre_activation_node_layer = self.pre_activation_nodes[layer+1]
+            node_layer = self.nodes[layer]
+            delta_k = delta*self.sigmoid_derivative(pre_activation_node_layer)
+            gradient_descent = np.outer(node_layer, delta_k);
+            self.W[layer] += self.learning_rate*gradient_descent
+            return delta_k
+
         weights = self.W[layer];
+        pre_activation_node_layer = self.pre_activation_nodes[layer+1]
         node_layer = self.nodes[layer]
-        delta_l = weights@delta * self.activ_func_deriv(node_layer);
-        gradient_descent = self.nodes[layer]*delta_l;
-        self.W[layer] = self.W[layer] - self.learning_rate*gradient_descent.reshape(-1,1);
+        delta_l = delta@previous_weights.transpose() * self.sigmoid_derivative(pre_activation_node_layer);
+        gradient_descent = np.outer(node_layer, delta_l)
+        self.W[layer] += self.learning_rate*gradient_descent
         return delta_l;
 
 
@@ -86,60 +99,55 @@ class NN:
         print("\n***STARTING TRAINING***")
         initial_weights = copy.deepcopy(self.W)
         for i in range(num_iterations):
-            print(f"***ITERATION {i+1}***")
             for j in range(len(inputs)):
-                print("\n" + "-"*90 + "\n")
-                print(f"Input #{i+1}:");
-                self.nodes[0] = inputs[j];
-                # print("\nFeedforward stage:")
-                # print("Nodes before:")
-                # print(self.nodes);
+                self.nodes[0] = inputs[j]
+                self.pre_activation_nodes[0] = inputs[j]
+
                 for i in range(self.num_layers-1):
                     # update nodes[1] through nodes[num_layers-1], inclusive
                     self.feedforward(i+1)
-                # print("Nodes after:")
-                # print(self.nodes)
-                # print("\nBackprop step:")
-                # calculate the error
-                delta_L = self.error(outputs[j]);
-                curr_layer = self.num_layers-2;
-                print("Error:")
-                print(delta_L)
-                # print("W before:")
-                # print(self.W)
-                delta_l = self.backprop(curr_layer, delta_L);
-                for i in range(self.num_layers-3, -1, -1):
-                    delta_l = self.backprop(i, delta_l);
-                # print("W after:")
-                # print(self.W);
-            print("\n" + "-"*90 + "\n")
 
-        #print("\n" + "-"*90 + "\n")
+                delta = self.error(outputs[j]);
+                delta = self.backprop(self.num_layers-2, delta, None)
+                for i in range(self.num_layers-3, -1, -1):
+                    delta = self.backprop(i, delta, self.W[i+1]);
+
         print("Weight comparison:")
         print("Initial:")
         print(initial_weights)
         print("Final:")
         print(test_NN.W)
 
+    def predict_one(self, input):
+        self.nodes[0] = input;
+        for i in range(self.num_layers-1):
+            self.feedforward(i+1)
+        return self.nodes[self.num_layers-1]
+
+    def predict_multiple(self, inputs):
+        results = []
+        for input in inputs:
+            results.append(self.predict_one(input))
+        return results
+
 if __name__ == "__main__":
     # goal: have input[i] as inputs to the NN give back target[i] as the output
-    input = np.array([[0,0,1],[0,1,1],[1,0,0],[1,1,0],[1,0,1],[1,1,1]])
-    target = np.array([[0],[1],[0],[1],[1],[0]])
+    #input = np.array([[0,0,1],[0,1,1],[1,0,0],[1,1,0],[1,0,1],[1,1,1]])
+    #target = np.array([[0],[1],[0],[1],[1],[0]])
 
-    test_NN = NN(3,[3,3,1],[1.0,1.0]);
-    #initial_weights = copy.deepcopy(test_NN.W)
-    test_NN.train(input, target, 50)
+    data = datasets.load_iris()
+    x = data["data"]
+    x = (x-x.mean())/x.std()
+    y = data["target"]
+    y = np.eye(3)[y]
 
-    # print("\n***STARTING TRAINING***")
-    # for j in range(100):
-    #     for i in range(len(input)):
-    #         print("\n" + "-"*90 + "\n")
-    #         print(f"Iteration {i+1}:");
-    #         test_NN.train(input[i], target[i]);
+    #print(x)
+    print(y)
+    print(len(y))
 
-    # print("\n" + "-"*90 + "\n")
-    # print("Weight comparison:")
-    # print("Initial:")
-    # print(initial_weights)
-    # print("Final:")
-    # print(test_NN.W)
+    test_NN = NN([4,10,3],[0,0]);
+    test_NN.train(x, y, 10000)
+
+    print("\n***R")
+    for result in test_NN.predict_multiple(x) :
+        print(result)
