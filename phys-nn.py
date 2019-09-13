@@ -2,6 +2,8 @@ import numpy as np
 import copy
 from sklearn import datasets
 import sklearn.metrics
+import time
+from progress import ProgressBarThread
 
 class NN:
     # layer_node_count = list of number of nodes in each layers
@@ -39,7 +41,6 @@ class NN:
 
         self.pre_activation_nodes = copy.deepcopy(self.nodes)
 
-
     # give the layer value to update
     def feedforward(self, layer):
         # bounds checking
@@ -61,7 +62,6 @@ class NN:
 
         # feed forward to the node
         self.nodes[layer] = self.sigmoid(activation_input)
-
 
     # Calculate error in output layer
     def error(self, outputs):
@@ -89,34 +89,37 @@ class NN:
         self.W[layer] += self.learning_rate*gradient_descent
         return delta_l;
 
-
     # inputs and outputs are numpy arrays with correct shape
     def train(self, inputs, outputs, num_iterations):
         if len(inputs) != len(outputs):
             print("Number of inputs different from number of outputs. Returning.")
             return;
 
-        print("\n***STARTING TRAINING***")
-        initial_weights = copy.deepcopy(self.W)
+        progress_thread = ProgressBarThread(num_iterations)
+        progress_thread.start()
+
+        print("-> Training started")
+        start_time = time.time()
         for i in range(num_iterations):
             for j in range(len(inputs)):
                 self.nodes[0] = inputs[j]
                 self.pre_activation_nodes[0] = inputs[j]
 
-                for i in range(self.num_layers-1):
-                    # update nodes[1] through nodes[num_layers-1], inclusive
-                    self.feedforward(i+1)
+                # update nodes[1] through nodes[num_layers-1], inclusive
+                for k in range(self.num_layers-1):
+                    self.feedforward(k+1)
 
                 delta = self.error(outputs[j]);
                 delta = self.backprop(self.num_layers-2, delta, None)
-                for i in range(self.num_layers-3, -1, -1):
-                    delta = self.backprop(i, delta, self.W[i+1]);
+                for k in range(self.num_layers-3, -1, -1):
+                    delta = self.backprop(k, delta, self.W[k+1])
+            progress_thread.update(i)
+        end_time = time.time()
+        progress_thread.stop(finished=True)
+        progress_thread.join()
 
-        print("Weight comparison:")
-        print("Initial:")
-        print(initial_weights)
-        print("Final:")
-        print(test_NN.W)
+        print("\n\n-> Training finished")
+        print(f"-> Time elapsed: {end_time-start_time:.8f} seconds")
 
     def predict_one(self, input):
         self.nodes[0] = input;
@@ -141,13 +144,23 @@ if __name__ == "__main__":
     y = data["target"]
     y = np.eye(3)[y]
 
-    #print(x)
-    print(y)
-    print(len(y))
+    # Took 444.64 seconds
+    # test_NN = NN([4,6,10,20,10,6,3],[0,0,0,0,0,0])
+    # test_NN.train(x, y, 10000)
 
-    test_NN = NN([4,10,3],[0,0]);
+    # Took 157.95 seconds
+    # test_NN = NN([4,5,3],[0,0])
+    # test_NN.train(x, y, 10000)
+
+    # Took 61.77 seconds, but not very accurate
+    # test_NN = NN([4,3],[0])
+    # test_NN.train(x, y, 10000)
+
+    # Took 209.85 seconds
+    test_NN = NN([4,10,7,3],[0,0,0])
     test_NN.train(x, y, 10000)
 
-    print("\n***R")
-    for result in test_NN.predict_multiple(x) :
-        print(result)
+    print("\n-> Results")
+    results = test_NN.predict_multiple(x)
+    for i in range(len(results)):
+        print(results[i])
